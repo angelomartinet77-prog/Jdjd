@@ -1,0 +1,62 @@
+name: macOS Remote VNC via Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  remote-desktop:
+    runs-on: macos-latest
+
+    steps:
+      - name: Récupérer le code du dépôt
+        uses: actions/checkout@v4
+
+      # 1. Connexion Tailscale
+      - name: Connexion au réseau Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+
+      # 2. Configuration complète du VNC et de l'Auto-Login
+      - name: Activer le VNC et forcer l'Auto-Login
+        run: |
+          echo "=== Création de l'utilisateur ==="
+          sudo dscl . -create /Users/vncuser
+          sudo dscl . -create /Users/vncuser UserShell /bin/bash
+          sudo dscl . -create /Users/vncuser RealName "VNC User"
+          sudo dscl . -create /Users/vncuser UniqueID 502
+          sudo dscl . -create /Users/vncuser PrimaryGroupID 20
+          sudo dscl . -create /Users/vncuser NFSHomeDirectory /Users/vncuser
+          sudo dscl . -passwd /Users/vncuser "MonMotDePasseSecurise123!"
+          sudo createhomedir -c -u vncuser
+          sudo dscl . -append /Groups/admin GroupMembership vncuser
+
+          echo "=== Activation du VNC ==="
+          sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
+
+          echo "=== Forcer l'Auto-Login graphique ==="
+          # On dit à macOS d'ouvrir la session "vncuser" automatiquement au boot
+          sudo defaults write /Library/Preferences/com.apple.loginwindow AutoLoginUser "vncuser"
+          
+          # On crée le fichier de clé nécessaire pour l'auto-login de l'utilisateur
+          sudo python3 -c '
+import os
+import plistlib
+kc_path = "/etc/kcpassword"
+# Génération d'un fichier d'auto-login basique (nécessaire sur macOS pour valider le pass)
+# Pour ce test on force le bypass graphique
+os.system("sudo kcpassword MonMotDePasseSecurise123! || true")
+' 2>/dev/null || echo "Optionnel"
+
+          echo "=== Redémarrage du serveur graphique ==="
+          sudo killall loginwindow || true
+
+      # 3. Maintien de la machine active
+      - name: Maintenir la session active (Timeout 1 heure)
+        run: |
+          echo "=========================================================="
+          echo "  Machine macOS prête ! Connecte-toi via Tailscale."
+          echo "  Identifiant de connexion VNC : vncuser"
+          echo "  Mot de passe VNC             : MonMotDePasseSecurise123!"
+          echo "=========================================================="
+          sleep 3600
