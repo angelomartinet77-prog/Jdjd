@@ -17,8 +17,8 @@ jobs:
         with:
           authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
 
-      # 2. Configuration complète du VNC et de l'Auto-Login
-      - name: Activer le VNC et forcer l'Auto-Login
+      # 2. Configuration complète du VNC
+      - name: Activer le VNC macOS
         run: |
           echo "=== Création de l'utilisateur ==="
           sudo dscl . -create /Users/vncuser
@@ -34,24 +34,23 @@ jobs:
           echo "=== Activation du VNC ==="
           sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
 
-          echo "=== Forcer l'Auto-Login graphique ==="
-          # On dit à macOS d'ouvrir la session "vncuser" automatiquement au boot
+          echo "=== Préparation Auto-Login ==="
           sudo defaults write /Library/Preferences/com.apple.loginwindow AutoLoginUser "vncuser"
-          
-          # On crée le fichier de clé nécessaire pour l'auto-login de l'utilisateur
-          sudo python3 -c '
-import os
-import plistlib
-kc_path = "/etc/kcpassword"
-# Génération d'un fichier d'auto-login basique (nécessaire sur macOS pour valider le pass)
-# Pour ce test on force le bypass graphique
-os.system("sudo kcpassword MonMotDePasseSecurise123! || true")
-' 2>/dev/null || echo "Optionnel"
 
-          echo "=== Redémarrage du serveur graphique ==="
+      # 3. Étape Python propre (corrige l'erreur de la ligne 43)
+      - name: Générer le fichier de mot de passe Auto-Login
+        shell: python
+        run: |
+          import os
+          # On exécute proprement la commande de génération du mot de passe système
+          os.system("sudo kcpassword MonMotDePasseSecurise123! || true")
+
+      # 4. Redémarrage graphique pour appliquer l'Auto-Login
+      - name: Redémarrer le serveur graphique
+        run: |
           sudo killall loginwindow || true
 
-      # 3. Maintien de la machine active
+      # 5. Maintien de la machine active
       - name: Maintenir la session active (Timeout 1 heure)
         run: |
           echo "=========================================================="
