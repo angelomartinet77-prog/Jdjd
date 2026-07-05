@@ -1,0 +1,45 @@
+name: macOS Remote VNC via Tailscale (Version Stable)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  remote-desktop:
+    runs-on: macos-13 # On cible macOS 13 (Intel) car les outils VNC virtuels y sont 100% stables sans puce Apple Silicon
+
+    steps:
+      - name: Récupérer le code du dépôt
+        uses: actions/checkout@v4
+
+      # 1. Connexion Tailscale
+      - name: Connexion au réseau Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+
+      # 2. Installation d'un gestionnaire d'affichage virtuel et de TigerVNC
+      - name: Installer et configurer un VNC virtuel
+        run: |
+          echo "=== Installation des outils nécessaires ==="
+          brew install tigervnc
+
+          echo "=== Configuration du mot de passe VNC ==="
+          # On configure le mot de passe VNC de manière non interactive
+          mkdir -p ~/.vnc
+          echo "MonMotDePasseSecurise123!" | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+
+          echo "=== Démarrage du serveur VNC sur un écran virtuel ==="
+          # On force la création d'un écran virtuel en 1280x800 (parfait pour mobile)
+          vncserver :1 -geometry 1280x800 -depth 24
+
+      # 3. Maintien de la session active
+      - name: Maintenir la session active (Timeout 1 heure)
+        run: |
+          echo "=========================================================="
+          echo "  Machine macOS prête ! Connecte-toi via Tailscale."
+          echo "  IMPORTANT : Tu dois ajouter ':1' ou le port '5901' à l'IP !"
+          echo "  Exemple dans ton appli VNC : 100.xx.yy.zz:1  ou  100.xx.yy.zz:5901"
+          echo "  Mot de passe VNC           : MonMotDePasseSecurise123!"
+          echo "=========================================================="
+          sleep 3600
